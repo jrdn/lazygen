@@ -23,7 +23,6 @@ type Generator struct {
 
 func NewParser(path string) (*Generator, error) {
 	fset := token.NewFileSet()
-
 	astFile, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
@@ -33,20 +32,16 @@ func NewParser(path string) (*Generator, error) {
 		SourcePath: path,
 		Templates:  make(map[string]string),
 		Instances:  make(map[string][]map[string]interface{}),
+		Package:    astFile.Name.Name,
 	}
-
-	generator.Package = astFile.Name.Name
 
 	for _, commentGroup := range astFile.Comments {
 		for _, comment := range commentGroup.List {
-			cleaned := generator.CleanComment(comment.Text)
-			err := generator.ParseComment(cleaned)
-			if err != nil {
+			if err := generator.ParseComment(generator.CleanComment(comment.Text)); err != nil {
 				return nil, err
 			}
 		}
 	}
-
 	return generator, nil
 }
 
@@ -59,9 +54,12 @@ func (g *Generator) ParseImports(comment string) error {
 	if len(lines) <= 1 {
 		return fmt.Errorf("got %s header but not body", LazyGenImports)
 	}
-
-	g.Imports = append(g.Imports, lines[1:]...)
-
+	for _, line := range lines[1:] {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			g.Imports = append(g.Imports, line)
+		}
+	}
 	return nil
 }
 
@@ -70,49 +68,35 @@ func (g *Generator) ParseTemplate(comment string) error {
 	if len(lines) <= 1 {
 		return fmt.Errorf("got %s header but not body", LazyGenTemplate)
 	}
-
-	header := lines[0]
-	parts := strings.Split(strings.TrimSpace(header), " ")
+	parts := strings.Fields(lines[0])
 	if len(parts) != 2 {
 		return fmt.Errorf("%s has no name", LazyGenTemplate)
 	}
-
 	name := parts[1]
-
-	templateContent := strings.Builder{}
-	for _, l := range lines[1:] {
-		templateContent.WriteString(l)
+	var templateContent strings.Builder
+	for _, line := range lines[1:] {
+		templateContent.WriteString(line)
 		templateContent.WriteString("\n")
 	}
-
 	g.Templates[name] = templateContent.String()
 	return nil
 }
 
 func (g *Generator) ParseInstance(comment string) error {
-	var parts []string
-	for _, line := range strings.Split(comment, "\n") {
-		parts = append(parts, strings.Split(line, " ")...)
-	}
-
-	if parts == nil {
-		return fmt.Errorf("failed to parse lazygen:instance comment")
-	}
-
+	parts := strings.Fields(comment)
 	if len(parts) < 2 {
 		return fmt.Errorf("failed to parse lazygen:instance comment, missing name")
 	}
-
 	name := parts[1]
-
 	params := make(map[string]interface{})
 	for _, part := range parts[2:] {
-		paramParts := strings.Split(part, "=")
-
+		paramParts := strings.SplitN(part, "=", 2)
+		if len(paramParts) != 2 || strings.TrimSpace(paramParts[0]) == "" {
+			return fmt.Errorf("invalid lazygen:instance parameter %q; expected key=value", part)
+		}
 		params[strings.TrimSpace(paramParts[0])] = strings.TrimSpace(paramParts[1])
 	}
 	g.Instances[name] = append(g.Instances[name], params)
-
 	return nil
 }
 
@@ -132,14 +116,11 @@ func (g *Generator) CleanComment(comment string) string {
 	comment = strings.TrimPrefix(comment, "/*")
 	comment = strings.TrimSuffix(comment, "*/")
 	comment = strings.TrimSpace(comment)
-
-	buf := strings.Builder{}
-
+	var buf strings.Builder
 	for _, line := range strings.Split(comment, "\n") {
 		line = strings.TrimPrefix(line, "//")
 		buf.WriteString(line)
 		buf.WriteString("\n")
 	}
-
 	return strings.TrimSpace(buf.String())
 }
