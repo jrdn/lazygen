@@ -25,20 +25,26 @@ https://masterminds.github.io/sprig/
 
 For example:
 ```
+// lazygen:imports
+"fmt"
+*/
+
 /* lazygen:template HelloWorld
 func {{title .h}}{{title .w}}() {
     fmt.Println("{{upper .h}} {{.w}}")
 }
-/*
+*/
 
-// lazygen:instance h=hello w=world
+// lazygen:instance HelloWorld h=hello w=world
 ```
 would render to:
 ```
-func HelloWorld() {}
-    fmt.Println("Hello world")
+func HelloWorld() {
+    fmt.Println("HELLO world")
 }
 ```
+
+`lazygen:imports` declares imports used by generated templates. Generation and `-printOutput` both format and validate the generated Go. `-printOutput` writes only the generated source to stdout and never touches the destination file; generation errors exit nonzero.
 
 ### Running the generator
 At the top of the file you'd like to generate, add the go generate comment:

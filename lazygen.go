@@ -3,9 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"go/format"
 	"io/ioutil"
 	"os"
-	"os/exec"
 
 	"github.com/jrdn/lazygen/pkg"
 )
@@ -16,19 +16,28 @@ type LazyGenOptions struct {
 }
 
 func main() {
+	if err := run(os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run(args []string) error {
+	flags := flag.NewFlagSet("lazygen", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
 	var printOutput bool
-	flag.BoolVar(&printOutput, "printOutput", false, "Print to stdout instead of writing the file")
-	flag.Parse()
+	flags.BoolVar(&printOutput, "printOutput", false, "Print to stdout instead of writing the file")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 1 {
+		return fmt.Errorf("expected exactly one source file, got %d", flags.NArg())
+	}
 
-	options := LazyGenOptions{
-		SrcFile: flag.Arg(0),
+	return lazyGen(LazyGenOptions{
+		SrcFile: flags.Arg(0),
 		Print:   printOutput,
-	}
-
-	err := lazyGen(options)
-	if err != nil {
-		fmt.Printf("ERROR: %v\n\n", err)
-	}
+	})
 }
 
 func lazyGen(options LazyGenOptions) error {
@@ -44,17 +53,21 @@ func lazyGen(options LazyGenOptions) error {
 		return err
 	}
 	if options.Print {
-		fmt.Printf("\n%s content:\n\n", generator.Outfile())
-		fmt.Println(data)
-	} else {
-		fmt.Printf("Generating to destination file: %s\n", generator.Outfile())
-		if err := ioutil.WriteFile(generator.Outfile(), []byte(data), os.FileMode(0o644)); err != nil {
-			return err
+		formatted, err := format.Source([]byte(data))
+		if err != nil {
+			return fmt.Errorf("format generated output: %w", err)
 		}
+		fmt.Printf("\n%s content:\n\n", generator.Outfile())
+		_, err = os.Stdout.Write(formatted)
+		return err
 	}
 
-	cmd := exec.Command("gofmt", "-w", generator.Outfile())
-	if err := cmd.Run(); err != nil {
+	fmt.Printf("Generating to destination file: %s\n", generator.Outfile())
+	formatted, err := format.Source([]byte(data))
+	if err != nil {
+		return fmt.Errorf("format generated output: %w", err)
+	}
+	if err := ioutil.WriteFile(generator.Outfile(), formatted, os.FileMode(0o644)); err != nil {
 		return err
 	}
 
