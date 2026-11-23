@@ -30,6 +30,12 @@ func Hello() {}
 	if !strings.Contains(output, "func Hello()") {
 		t.Fatalf("printed output missing generated function: %q", output)
 	}
+	if !strings.HasPrefix(output, "package example\n") {
+		t.Fatalf("print mode stdout must contain source only, got %q", output)
+	}
+	if strings.Contains(output, "Generating from source file:") || strings.Contains(output, " content:") {
+		t.Fatalf("print mode stdout contains progress text: %q", output)
+	}
 }
 
 func TestLazyGenWritesGeneratedFile(t *testing.T) {
