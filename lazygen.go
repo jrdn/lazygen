@@ -41,8 +41,6 @@ func run(args []string) error {
 }
 
 func lazyGen(options LazyGenOptions) error {
-	fmt.Printf("Generating from source file: %s\n", options.SrcFile)
-
 	generator, err := pkg.NewParser(options.SrcFile)
 	if err != nil {
 		return err
@@ -57,12 +55,12 @@ func lazyGen(options LazyGenOptions) error {
 		if err != nil {
 			return fmt.Errorf("format generated output: %w", err)
 		}
-		fmt.Printf("\n%s content:\n\n", generator.Outfile())
 		_, err = os.Stdout.Write(formatted)
 		return err
 	}
 
-	fmt.Printf("Generating to destination file: %s\n", generator.Outfile())
+	fmt.Fprintf(os.Stderr, "Generating from source file: %s\n", options.SrcFile)
+	fmt.Fprintf(os.Stderr, "Generating to destination file: %s\n", generator.Outfile())
 	formatted, err := format.Source([]byte(data))
 	if err != nil {
 		return fmt.Errorf("format generated output: %w", err)
